@@ -16,32 +16,33 @@ python3 app.py            # http://127.0.0.1:5001
 
 Port 5001, not 5000 — macOS AirPlay squats on 5000 and answers 403.
 
-## Deploy (EC2, gunicorn + nginx)
+## Deploy (EC2 — Amazon Linux 2023, gunicorn + nginx)
 
 ```bash
-# on the box
+sudo dnf install -y git python3 python3-pip nginx
+
 git clone <your remote> ~/rent_v_buy && cd ~/rent_v_buy
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 
 sudo cp deploy/rentvbuy.service /etc/systemd/system/rentvbuy.service
 sudo systemctl daemon-reload && sudo systemctl enable --now rentvbuy
 
-sudo cp deploy/rentvbuy.nginx.conf /etc/nginx/sites-available/rentvbuy
-sudo ln -sf /etc/nginx/sites-available/rentvbuy /etc/nginx/sites-enabled/rentvbuy
-sudo nginx -t && sudo systemctl reload nginx
+sudo cp deploy/rentvbuy.nginx.conf /etc/nginx/conf.d/rentvbuy.conf
+sudo nginx -t && sudo systemctl enable --now nginx && sudo systemctl reload nginx
 ```
 
-Set `server_name` in the nginx config, then `sudo certbot --nginx -d yourdomain` for TLS.
-
-**Sharing a box with TackTracker?** That app already uses gunicorn `:8000` and holds nginx's
-`default_server` on :80. This one is configured for `:8001` and needs a real `server_name`
-(a subdomain pointed at the box) — nginx rejects two `default_server` blocks on the same port.
+TLS: `sudo dnf install -y certbot python3-certbot-nginx && sudo certbot --nginx -d yourdomain`
+(set a real `server_name` in the conf first).
 
 Notes for the box:
-- Paths in both config files assume `/home/ubuntu/rent_v_buy`. Change them if you deploy elsewhere.
+- Paths assume **Amazon Linux** (`ec2-user`, `/etc/nginx/conf.d/`). On Ubuntu, switch the unit to
+  `User=ubuntu` with `/home/ubuntu/...`, and install the nginx file into
+  `sites-available` + a `sites-enabled` symlink.
+- Open port 80 (and 443) in the instance's **security group** — a working nginx still looks dead
+  from outside without it.
 - The first ZIP lookup downloads ~124 MB from Zillow and takes ~10s; it's cached in `data/`
-  (gitignored) for 30 days. Give the instance a little disk headroom, or pre-warm it with
-  `python3 -c "import zipdata; zipdata.lookup_zip('22314')"` after deploying.
+  (gitignored) for 30 days. Pre-warm it with
+  `./.venv/bin/python -c "import zipdata; zipdata.lookup_zip('22314')"`.
 - No API keys, no secrets, no database. Nothing to configure.
 
 ## What it models

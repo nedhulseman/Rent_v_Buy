@@ -1,14 +1,17 @@
-# Install at /etc/systemd/system/rentvbuy.service, then:
+# Amazon Linux 2023. Install at /etc/systemd/system/rentvbuy.service, then:
 #   sudo systemctl daemon-reload && sudo systemctl enable --now rentvbuy
+#
+# On Ubuntu instead: change User/Group to ubuntu and the paths to /home/ubuntu/rent_v_buy.
 [Unit]
 Description=Rent vs Buy calculator (gunicorn)
 After=network.target
 
 [Service]
-User=ubuntu
-WorkingDirectory=/home/ubuntu/rent_v_buy
-Environment="PATH=/home/ubuntu/rent_v_buy/.venv/bin"
-ExecStart=/home/ubuntu/rent_v_buy/.venv/bin/gunicorn -w 2 -b 127.0.0.1:8001 --timeout 120 wsgi:app
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/home/ec2-user/rent_v_buy
+Environment="PATH=/home/ec2-user/rent_v_buy/.venv/bin"
+ExecStart=/home/ec2-user/rent_v_buy/.venv/bin/gunicorn -w 2 -b 127.0.0.1:8001 --timeout 120 wsgi:app
 Restart=on-failure
 RestartSec=3
 
