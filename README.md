@@ -33,6 +33,10 @@ sudo nginx -t && sudo systemctl reload nginx
 
 Set `server_name` in the nginx config, then `sudo certbot --nginx -d yourdomain` for TLS.
 
+**Sharing a box with TackTracker?** That app already uses gunicorn `:8000` and holds nginx's
+`default_server` on :80. This one is configured for `:8001` and needs a real `server_name`
+(a subdomain pointed at the box) — nginx rejects two `default_server` blocks on the same port.
+
 Notes for the box:
 - Paths in both config files assume `/home/ubuntu/rent_v_buy`. Change them if you deploy elsewhere.
 - The first ZIP lookup downloads ~124 MB from Zillow and takes ~10s; it's cached in `data/`
