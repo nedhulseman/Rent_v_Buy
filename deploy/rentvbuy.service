@@ -1,0 +1,16 @@
+# Install at /etc/systemd/system/rentvbuy.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rentvbuy
+[Unit]
+Description=Rent vs Buy calculator (gunicorn)
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rent_v_buy
+Environment="PATH=/home/ubuntu/rent_v_buy/.venv/bin"
+ExecStart=/home/ubuntu/rent_v_buy/.venv/bin/gunicorn -w 2 -b 127.0.0.1:8000 --timeout 120 wsgi:app
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

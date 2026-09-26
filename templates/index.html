@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rent vs. Buy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <h1>Rent vs. Buy</h1>
+      <p class="sub">A long-horizon look at what your money does in each scenario.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <details class="card factors">
+      <summary>
+        <span>All of the factors considered</span>
+        <span class="chev">&#9662;</span>
+      </summary>
+      <div class="factors-grid">
+        <div class="factors-col factors-rent">
+          <h3>Renting</h3>
+          <ul>
+            <li><strong>Rent</strong> — steps up once a year at your rent-growth rate.</li>
+            <li><strong>Full capital stays invested</strong> — the renter starts with the whole
+                amount, since no down payment or closing costs are taken out.</li>
+            <li><strong>Investment growth</strong> — compounded monthly at your expected return.</li>
+            <li><strong>The monthly difference</strong> — in any month renting is cheaper, the
+                saving is added to the renter's investments.</li>
+          </ul>
+          <h4>Not counted</h4>
+          <ul class="muted-list">
+            <li>Security deposits and renter's insurance</li>
+            <li>Cost of moving between rentals</li>
+            <li>Tax on investment gains</li>
+          </ul>
+        </div>
+
+        <div class="factors-col factors-house">
+          <h3>Owning</h3>
+          <ul>
+            <li><strong>Mortgage</strong> — fixed payment, split into interest and principal on a
+                real amortization schedule.</li>
+            <li><strong>Down payment + closing, moving and realtor fees</strong> — taken out of
+                starting capital, so the money you can't invest is charged against buying.</li>
+            <li><strong>Property tax</strong> — annual rate on the <em>current</em> home value.</li>
+            <li><strong>HOA / monthly fees</strong></li>
+            <li><strong>Maintenance</strong> — annual rate on current value (~1% rule of thumb).</li>
+            <li><strong>Homeowners insurance</strong> — annual rate on current value.</li>
+            <li><strong>PMI</strong> — charged until the balance falls below 80% of the purchase
+                price, then drops off automatically.</li>
+            <li><strong>Home appreciation</strong> — compounded monthly.</li>
+            <li><strong>Equity</strong> — down payment + principal paid + appreciation.</li>
+            <li><strong>Selling costs</strong> — commission and seller closing netted off equity at
+                every point, so "if I sold today" is always the honest number.</li>
+            <li><strong>Mortgage interest + property tax deduction</strong> — counted only for the
+                amount that exceeds the standard deduction, with property tax capped by SALT.
+                For many households this is legitimately $0.</li>
+            <li><strong>The monthly difference</strong> — in any month owning is cheaper, the
+                saving is added to the buyer's investments.</li>
+          </ul>
+          <h4>Not counted</h4>
+          <ul class="muted-list">
+            <li>Inflation on HOA and fees</li>
+            <li>Capital-gains treatment on a primary residence</li>
+            <li>Rental income, refinancing, extra principal payments</li>
+          </ul>
+        </div>
+      </div>
+      <p class="factors-note">
+        Both sides are compared on the same budget: whichever option costs less in a given month,
+        the difference is invested at your expected return. That's what makes the two totals
+        comparable.
+      </p>
+    </details>
+
+    <section class="card form-card">
+      <h2>The basics</h2>
+      <p class="hint">Start here. Everything else has a sensible default.</p>
+
+      <div class="zip-row">
+        <label class="field">
+          <span>Start from a ZIP code <small class="inline-hint">optional</small></span>
+          <div class="input"><input id="zip_code" type="text" inputmode="numeric" maxlength="5"
+                                    placeholder="e.g. 22314"></div>
+        </label>
+        <button id="zip_fetch" class="btn">Look up</button>
+        <div id="zip_result" class="zip-result"></div>
+      </div>
+
+      <div class="grid primary">
+        <label class="field">
+          <span>Home price</span>
+          <div class="input prefix"><span>$</span><input id="home_price" type="number" step="1000" value="{{ defaults.home_price }}"></div>
+        </label>
+        <label class="field">
+          <span>Down payment</span>
+          <div class="input prefix"><span>$</span><input id="down_payment" type="number" step="1000" value="{{ defaults.down_payment }}"></div>
+        </label>
+        <label class="field">
+          <span>Mortgage rate</span>
+          <div class="input suffix"><input id="mortgage_rate_pct" type="number" step="0.01" value="{{ defaults.mortgage_rate_pct }}"><span>%</span></div>
+        </label>
+        <label class="field">
+          <span>Monthly rent (comparable apt)</span>
+          <div class="input prefix"><span>$</span><input id="monthly_rent" type="number" step="50" value="{{ defaults.monthly_rent }}"></div>
+        </label>
+        <label class="field">
+          <span>Available capital</span>
+          <div class="input prefix"><span>$</span><input id="available_capital" type="number" step="1000" value="{{ defaults.available_capital }}"></div>
+          <small>Total cash you'd otherwise invest if renting.</small>
+        </label>
+      </div>
+
+      <details class="advanced">
+        <summary>Advanced assumptions <span class="chev">&#9662;</span></summary>
+        <div class="field-group-head first">How long, and what you assume about markets<span class="group-blurb">The two rates here decide the answer more than anything else on this page.</span></div>
+        <div class="grid">
+          <label class="field">
+            <span>Loan length</span>
+            <div class="input suffix"><input id="n_years" type="number" step="1" value="{{ defaults.n_years }}"><span>yrs</span></div>
+            <small>Also how long the comparison runs.</small>
+          </label>
+          <label class="field">
+            <span>Home appreciation
+              <button type="button" class="help" data-tip="How fast the house gains value each year. The other number that decides the answer: if your investments out-earn the house by more than about two points a year, renting tends to win no matter how long you stay. US housing has historically run near 3-4% a year, but it varies enormously by location.">?</button>
+            </span>
+            <div class="input suffix"><input id="home_appreciation_pct" type="number" step="0.1" value="{{ defaults.home_appreciation_pct }}"><span>%</span></div>
+            <small>How much the home gains in value per year.</small>
+          </label>
+          <label class="field">
+            <span>Investment return
+              <button type="button" class="help" data-tip="What your savings earn if you invest them instead of putting them into a house. This applies to both sides: the renter's whole pot, and whatever the buyer has left after the down payment. A long-run stock market assumption is usually 6-7%; a savings account is 2-4%. This is one of the two numbers that most affects the answer.">?</button>
+            </span>
+            <div class="input suffix"><input id="investment_return_pct" type="number" step="0.1" value="{{ defaults.investment_return_pct }}"><span>%</span></div>
+            <small>Yearly return on money you invest.</small>
+          </label>
+          <label class="field">
+            <span>Rent increases</span>
+            <div class="input suffix"><input id="rent_growth_pct" type="number" step="0.1" value="{{ defaults.rent_growth_pct }}"><span>%</span></div>
+            <small>How much rent goes up each year.</small>
+          </label>
+        </div>
+        <div class="field-group-head">Ongoing costs of owning<span class="group-blurb">What you pay every month or year as an owner — a renter pays none of these.</span></div>
+        <div class="grid">
+          <label class="field">
+            <span>Property tax</span>
+            <div class="input suffix"><input id="property_tax_rate_pct" type="number" step="0.01" value="{{ defaults.property_tax_rate_pct }}"><span>%</span></div>
+            <small>Per year, as a share of the home's value.</small>
+          </label>
+          <label class="field">
+            <span>HOA / condo fees</span>
+            <div class="input prefix"><span>$</span><input id="hoa" type="number" step="10" value="{{ defaults.hoa }}"></div>
+            <small>Per month. Leave at 0 if there are none.</small>
+          </label>
+          <label class="field">
+            <span>Repairs &amp; upkeep
+              <button type="button" class="help" data-tip="Roof, HVAC, appliances, plumbing, paint - the things a landlord pays for when you rent. The usual planning figure is about 1% of the home's value per year. Leaving this out is the single biggest way a rent-vs-buy calculator can flatter buying.">?</button>
+            </span>
+            <div class="input suffix"><input id="maintenance_rate_pct" type="number" step="0.1" value="{{ defaults.maintenance_rate_pct }}"><span>%</span></div>
+            <small>Per year, as a share of the home's value. ~1% is typical.</small>
+          </label>
+          <label class="field">
+            <span>Home insurance</span>
+            <div class="input suffix"><input id="insurance_rate_pct" type="number" step="0.05" value="{{ defaults.insurance_rate_pct }}"><span>%</span></div>
+            <small>Per year, as a share of the home's value.</small>
+          </label>
+          <label class="field">
+            <span>Mortgage insurance (PMI)
+              <button type="button" class="help" data-tip="An extra monthly charge lenders add when you put down less than 20%. It is not permanent: it comes off automatically once you have paid the loan down to 80% of the purchase price, and this calculator drops it at exactly that point. Put 20% or more down and you will never pay it.">?</button>
+            </span>
+            <div class="input suffix"><input id="pmi_rate_pct" type="number" step="0.05" value="{{ defaults.pmi_rate_pct }}"><span>%</span></div>
+            <small>Per year on the loan balance. Only if you put under 20% down.</small>
+          </label>
+        </div>
+        <div class="field-group-head">One-time costs<span class="group-blurb">Paid once at purchase, or once when you sell.</span></div>
+        <div class="grid">
+          <label class="field">
+            <span>Closing costs
+              <button type="button" class="help" data-tip="The one-off fees to get the loan and complete the purchase: lender fees, title, appraisal, inspection, taxes at settlement. Typically 2-5% of the price. Paid from your cash at purchase, so it is money that never gets invested.">?</button>
+            </span>
+            <div class="input prefix"><span>$</span><input id="closing_costs" type="number" step="100" value="{{ defaults.closing_costs }}"></div>
+            <small>One-off, paid when you buy.</small>
+          </label>
+          <label class="field">
+            <span>Moving cost</span>
+            <div class="input prefix"><span>$</span><input id="moving_cost" type="number" step="100" value="{{ defaults.moving_cost }}"></div>
+            <small>One-off, paid when you buy.</small>
+          </label>
+          <label class="field">
+            <span>Buyer-side agent fees</span>
+            <div class="input prefix"><span>$</span><input id="realtor_fees" type="number" step="100" value="{{ defaults.realtor_fees }}"></div>
+            <small>One-off, at purchase. Usually 0 - the seller pays. Selling is above.</small>
+          </label>
+          <label class="field">
+            <span>Cost to sell
+              <button type="button" class="help" data-tip="What you hand over when you eventually sell: agent commission plus the seller's share of closing costs, normally 5-7% of the sale price. It is charged at every point in the comparison, not just at the end, so the crossover point answers 'if I sold in this month, am I ahead?'">?</button>
+            </span>
+            <div class="input suffix"><input id="selling_cost_pct" type="number" step="0.5" value="{{ defaults.selling_cost_pct }}"><span>%</span></div>
+            <small>Of the sale price, when you sell.</small>
+          </label>
+        </div>
+        <div class="field-group-head">Tax deduction<span class="group-blurb">Optional — leave your tax rate at 0 to ignore tax breaks entirely.</span></div>
+        <div class="grid">
+          <label class="field">
+            <span>Your tax rate
+              <button type="button" class="help" data-tip="Your marginal rate: the percentage you pay on your next dollar of income, federal plus state. It is the rate a deduction saves you, not your average tax rate. Set it to 0 and the calculator ignores tax breaks altogether.">?</button>
+            </span>
+            <div class="input suffix"><input id="marginal_tax_rate_pct" type="number" step="1" value="{{ defaults.marginal_tax_rate_pct }}"><span>%</span></div>
+            <small>Federal + state, on your next dollar earned.</small>
+          </label>
+          <label class="field">
+            <span>Standard deduction
+              <button type="button" class="help" data-tip="Everyone can subtract this from their income without itemizing anything. So owning only saves you tax on the amount your mortgage interest and property tax exceed this number - and for many households that amount is zero. 2025: about $30,000 married filing jointly, $15,000 single.">?</button>
+            </span>
+            <div class="input prefix"><span>$</span><input id="standard_deduction" type="number" step="500" value="{{ defaults.standard_deduction }}"></div>
+            <small>~$30k married, ~$15k single. Deductions only count above this.</small>
+          </label>
+          <label class="field">
+            <span>SALT cap
+              <button type="button" class="help" data-tip="A federal limit on how much state and local tax - including your property tax - you are allowed to deduct. Currently $10,000. Property tax above this line gives you no deduction at all.">?</button>
+            </span>
+            <div class="input prefix"><span>$</span><input id="salt_cap" type="number" step="500" value="{{ defaults.salt_cap }}"></div>
+            <small>Limit on deductible property + state tax. Currently $10k.</small>
+          </label>
+          <label class="field">
+            <span>Other deductions
+              <button type="button" class="help" data-tip="Anything else you would itemize - charitable giving, big medical bills, student loan interest. It matters here because it helps you clear the standard deduction, which is what makes mortgage interest worth anything at tax time.">?</button>
+            </span>
+            <div class="input prefix"><span>$</span><input id="other_itemized" type="number" step="500" value="{{ defaults.other_itemized }}"></div>
+            <small>Charity, medical, etc. Helps you clear the standard deduction.</small>
+          </label>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button id="recalc" class="btn primary">Recalculate</button>
+        <span id="autorecalc-note" class="muted">Updates automatically as you type.</span>
+      </div>
+    </section>
+
+    <section id="results" class="results hidden">
+      <div class="summary-cards">
+        <div class="metric metric-house">
+          <div class="metric-label">Buying — final assets</div>
+          <div class="metric-value" id="m-house">—</div>
+          <div class="metric-sub" id="m-house-sub">Equity + invested cash</div>
+        </div>
+        <div class="metric metric-rent">
+          <div class="metric-label">Renting — final assets</div>
+          <div class="metric-value" id="m-apt">—</div>
+          <div class="metric-sub" id="m-apt-sub">Invested portfolio</div>
+        </div>
+        <div class="metric metric-delta">
+          <div class="metric-label">Difference</div>
+          <div class="metric-value" id="m-delta">—</div>
+          <div class="metric-sub" id="m-winner">—</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Monthly mortgage</div>
+          <div class="metric-value" id="m-mortgage">—</div>
+          <div class="metric-sub" id="m-mortgage-sub">Principal + interest</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Total monthly cost</div>
+          <div class="metric-value" id="m-monthly">—</div>
+          <div class="metric-sub">Mortgage + tax + HOA</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Crossover</div>
+          <div class="metric-value" id="m-cross">—</div>
+          <div class="metric-sub">When buying overtakes renting</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="chart-header">
+          <h2>Portfolio value over time</h2>
+          <p class="hint">Total assets in each scenario across the loan horizon.</p>
+        </div>
+        <div id="chart-main" class="chart"></div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <div class="chart-header">
+            <h2>Buying — assets breakdown</h2>
+            <p class="hint">Home equity vs. side investments.</p>
+          </div>
+          <div id="chart-breakdown" class="chart"></div>
+        </div>
+        <div class="card">
+          <div class="chart-header">
+            <h2>Monthly cost: own vs. rent</h2>
+            <p class="hint">What you'd actually pay each month.</p>
+          </div>
+          <div id="chart-monthly" class="chart"></div>
+        </div>
+      </div>
+
+      <div class="card explore">
+        <div class="chart-header">
+          <h2>Explore sensitivity</h2>
+          <p class="hint">Green means buying ends ahead, red means renting does. Swap in any two
+            inputs to see what actually moves the answer — everything else stays as you set it above.</p>
+        </div>
+
+        <div class="explore-controls">
+          <label class="field">
+            <span>Measure</span>
+            <div class="input">
+              <select id="grid_metric">
+                {% for m in metrics %}<option value="{{ m.key }}">{{ m.label }}</option>{% endfor %}
+              </select>
+            </div>
+          </label>
+
+          <label class="field">
+            <span>Variable 1</span>
+            <div class="input">
+              <select id="grid_var1">
+                {% for d in dimensions %}<option value="{{ d.key }}"
+                  {% if d.key == 'investment_return_pct' %}selected{% endif %}>{{ d.label }}</option>{% endfor %}
+              </select>
+            </div>
+          </label>
+          <label class="field narrow">
+            <span>From</span>
+            <div class="input"><input id="grid_var1_min" type="number" step="any"></div>
+          </label>
+          <label class="field narrow">
+            <span>To</span>
+            <div class="input"><input id="grid_var1_max" type="number" step="any"></div>
+          </label>
+          <label class="field narrow">
+            <span>Steps</span>
+            <div class="input"><input id="grid_var1_steps" type="number" min="2" max="11" step="1" value="7"></div>
+          </label>
+
+          <label class="field">
+            <span>Variable 2 <small class="inline-hint">optional</small></span>
+            <div class="input">
+              <select id="grid_var2">
+                <option value="">— none (single variable) —</option>
+                {% for d in dimensions %}<option value="{{ d.key }}"
+                  {% if d.key == 'mortgage_rate_pct' %}selected{% endif %}>{{ d.label }}</option>{% endfor %}
+              </select>
+            </div>
+          </label>
+          <label class="field narrow">
+            <span>From</span>
+            <div class="input"><input id="grid_var2_min" type="number" step="any"></div>
+          </label>
+          <label class="field narrow">
+            <span>To</span>
+            <div class="input"><input id="grid_var2_max" type="number" step="any"></div>
+          </label>
+          <label class="field narrow">
+            <span>Steps</span>
+            <div class="input"><input id="grid_var2_steps" type="number" min="2" max="11" step="1" value="7"></div>
+          </label>
+
+          <div class="explore-actions">
+            <button id="grid_run" class="btn primary">Run sensitivity</button>
+            <span id="grid_status" class="muted"></span>
+          </div>
+        </div>
+
+        <div id="chart-grid" class="chart"></div>
+        <p id="grid_legend" class="muted small"></p>
+      </div>
+
+      <div class="card">
+        <div class="chart-header">
+          <h2>Sensitivity: down payment</h2>
+          <p class="hint">How total assets evolve under different down payment levels.</p>
+        </div>
+        <div id="chart-sensitivity" class="chart"></div>
+      </div>
+    </section>
+
+    <section class="card methodology">
+      <details>
+        <summary>How this is calculated <span class="chev">▾</span></summary>
+        <div class="method-body">
+          <p>
+            We project two parallel timelines, month by month, over the full loan
+            horizon. In each timeline we track everything you own (home equity,
+            invested cash) so you can compare apples to apples — not just monthly
+            payments.
+          </p>
+
+          <h3>The high-level factors</h3>
+          <ul>
+            <li><strong>Mortgage payment</strong> — fixed monthly P&I from the standard amortization formula.</li>
+            <li><strong>Home value</strong> — compounds monthly at the appreciation rate.</li>
+            <li><strong>Equity</strong> — down payment + cumulative principal paid + appreciation gains.</li>
+            <li><strong>Property tax</strong> — annual rate × current home value, billed monthly.</li>
+            <li><strong>HOA & fees</strong> — fixed monthly cost.</li>
+            <li><strong>Rent</strong> — steps up once a year by the rent-growth rate.</li>
+            <li><strong>Surplus cash flow</strong> — whichever path is cheaper in a given month, the difference is invested at the expected return.</li>
+            <li><strong>Buying total</strong> — home equity + side investments.</li>
+            <li><strong>Renting total</strong> — full available capital invested from day one, plus the monthly surpluses.</li>
+          </ul>
+
+          <h3>The formulas</h3>
+          <p class="formula">Mortgage payment = L × (r(1+r)<sup>n</sup>) / ((1+r)<sup>n</sup> − 1)</p>
+          <p class="formula">Home value(t) = Price × (1 + a/12)<sup>t</sup></p>
+          <p class="formula">Rent(year y) = Rent₀ × (1 + g)<sup>y</sup></p>
+          <p class="formula">Investments(t) = Investments(t−1) × (1 + i/12) + monthly surplus</p>
+          <p class="muted small">
+            L = loan, r = monthly mortgage rate, n = total payments, a = annual home appreciation,
+            g = annual rent growth, i = annual investment return.
+          </p>
+
+          <h3>Now modelled</h3>
+          <ul>
+            <li>Maintenance and homeowners insurance, as annual rates on the current home value.</li>
+            <li>PMI, charged until the balance falls below 80% of the purchase price.</li>
+            <li>Selling costs, netted off equity at <em>every</em> period — so the crossover means
+                "if I sold that month", not just at the end.</li>
+            <li>Mortgage interest + property tax deduction, counting only the amount that exceeds
+                the standard deduction, with property tax capped by SALT. For many households
+                after 2017 this is legitimately zero.</li>
+          </ul>
+
+          <h3>What this still doesn't model</h3>
+          <ul>
+            <li>Inflation on HOA / fees, and on the standard deduction.</li>
+            <li>Tax on investment returns (flatters the renting side).</li>
+            <li>Capital-gains exclusion on a primary residence (flatters nobody here — no gains tax
+                is charged on either side).</li>
+            <li>Rent-side costs: deposits, renter's insurance, moving between rentals.</li>
+          </ul>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap muted small">Local-only prototype. Numbers are projections, not advice.</div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
